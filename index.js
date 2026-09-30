@@ -1,35 +1,43 @@
 const { default: makeWASocket, useMultiFileAuthState, DisconnectReason } = require('@whiskeysockets/baileys')
 const { Boom } = require('@hapi/boom')
 const express = require('express')
-const qrcode = require('qrcode-terminal')
 const pino = require('pino')
 
 const app = express()
-app.get('/', (req,res) => res.send('Sharvis77 online!'))
+app.get('/', (req,res) => res.send('Sharvis77 online! Use pairing code'))
 app.listen(3000, () => console.log('Servidor web on'))
+
+const PHONE_NUMBER = "258872698781"
 
 async function startBot() {
   const { state, saveCreds } = await useMultiFileAuthState('./auth')
   const sock = makeWASocket({
     auth: state,
     logger: pino({ level: 'silent' }),
-    printQRInTerminal: true,
+    printQRInTerminal: false,
     browser: ['Sharvis77','Chrome','1.0']
   })
 
   sock.ev.on('creds.update', saveCreds)
 
+  if (!sock.authState.creds.registered) {
+    setTimeout(async () => {
+      try {
+        const code = await sock.requestPairingCode(PHONE_NUMBER)
+        console.log("==================================")
+        console.log(`TEU CODIGO DE PAREAMENTO: ${code}`)
+        console.log("==================================")
+      } catch(e) { console.log("Erro ao gerar codigo:", e) }
+    }, 3000)
+  }
+
   sock.ev.on('connection.update', async (update) => {
-    const { connection, lastDisconnect, qr } = update
-    if(qr) {
-      console.log('--- ESCANEIE O QR CODE ABAIXO ---')
-      qrcode.generate(qr, { small: true })
-    }
+    const { connection, lastDisconnect } = update
     if(connection === 'close') {
-      const shouldReconnect = (lastDisconnect?.error instanceof Boom)?.output?.statusCode!== DisconnectReason.loggedOut
+      const shouldReconnect = lastDisconnect?.error?.output?.statusCode!== DisconnectReason.loggedOut
       if(shouldReconnect) startBot()
     } else if(connection === 'open') {
-      console.log('✅ Sharvis77 Conectado!')
+      console.log('✅ Sharvis77 Conectado via CODIGO!')
     }
   })
 
@@ -38,29 +46,14 @@ async function startBot() {
     if(!m.message || m.key.fromMe) return
     const texto = m.message.conversation || m.message.extendedTextMessage?.text || ''
     const from = m.key.remoteJid
-
     if(texto.toLowerCase() === 'menu' || texto.toLowerCase() === '.menu') {
-      await sock.sendMessage(from, { text: `*SHARVIS77 - BOT ONLINE* 🤖
-
-*COMANDOS:*
-.menu - este menu
-.ping - velocidade
-.dono - meu dono
-.figu - criar figurinha (manda foto + legenda.figu)
-.play [musica] - baixar musica
-.sticker / s - figurinha
-.oi - saudação
-
-*Bot 24h no ar!*` })
+      await sock.sendMessage(from, { text: `*SHARVIS77 - BOT ONLINE* 🤖\n\n*COMANDOS:*\n.menu - este menu\n.ping - velocidade\n.dono - meu dono\n.oi - saudacao\n\n*Bot 24h no ar!*` })
     }
     if(texto.toLowerCase() === '.ping') {
       await sock.sendMessage(from, { text: 'Pong! ⚡ 45ms' })
     }
     if(texto.toLowerCase() === '.dono') {
-      await sock.sendMessage(from, { text: 'Dono: leonidelamina-blip 🚀' })
-    }
-    if(texto.toLowerCase().startsWith('.play ')) {
-      await sock.sendMessage(from, { text: `🎵 Baixando: ${texto.slice(6)}... (em breve)` })
+      await sock.sendMessage(from, { text: 'Dono: 258872698781 🚀' })
     }
   })
 }
